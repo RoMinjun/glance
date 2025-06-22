@@ -1,0 +1,73 @@
+- name: News
+  columns:
+    - size: full
+      widgets:
+        - type: group
+          title: News
+          define: &rss-style
+            type: rss
+            style: detailed-list
+            hide-description: false
+            hide-categories: true
+          widgets:
+            - title: NU.nl
+              feeds:
+                - url: https://www.nu.nl/rss/Algemeen
+              <<: *rss-style
+            - title: NOS
+              feeds:
+                - url: https://feeds.nos.nl/nosnieuwsalgemeen
+              <<: *rss-style
+
+            - title: BBC World
+              feeds:
+                - url: http://feeds.bbci.co.uk/news/world/rss.xml
+              <<: *rss-style
+
+            - title: Tweakers
+              feeds:
+                - url: https://tweakers.net/feeds/mixed.xml
+              <<: *rss-style
+
+
+    - size: full
+      widgets:
+        - type: group
+          title: Reddit
+          define: &reddit-style
+            type: reddit
+            style: vertical-list
+            show-flairs: true
+            show-thumbnails: true
+          widgets:
+            - subreddit: flightradar24
+              <<: *reddit-style
+            - subreddit: aviation
+              <<: *reddit-style
+            - subreddit: 2ndYomKippurWar
+              <<: *reddit-style
+            - subreddit: aircrashinvestigation
+              <<: *reddit-style
+            - subreddit: CombatFootage
+              <<: *reddit-style
+            - subreddit: UkraineWarVideoReport
+              <<: *reddit-style
+
+        - type: group
+          title: LiveMap
+          define: &live-map-style
+            type: iframe
+            height: 400
+          widgets:
+            - title: Iran Live Map
+              source: https://iran.liveuamap.com
+              <<: *live-map-style
+            - title: Ukraine Live Map
+              source: https://liveuamap.com
+              <<: *live-map-style
+            - title: Israel-Palestine Live Map
+              source: https://israelpalestine.liveuamap.com
+              <<: *live-map-style
+            - title: EHAM
+              source: https://www.flightaware.com/live/airport/EHAM
+              <<: *live-map-style

@@ -1,0 +1,277 @@
+- name: Home
+  # Optionally, if you only have a single page you can hide the desktop navigation for a cleaner look
+  hide-desktop-navigation: false
+  columns:
+    - size: small
+      widgets:
+        - type: calendar
+          first-day-of-week: monday
+
+        - type: twitch-channels
+          channels:
+            - zackrawrr
+            - kireilol
+            - caseoh_
+        - type: group
+          define: &nearby-aircraft
+            type: custom-api
+            cache: 1m
+            template: |
+              <div class="opensky-aircraft-stats">
+                {{ $states := .JSON.Array "states" }}
+                {{ $statesCount := len $states }}
+
+                <div class="margin-block-2">
+                  <div class="size-h6">AIRCRAFT NEARBY: {{ $statesCount }} </div>
+                </div>
+
+                {{ if gt $statesCount 0 }}
+                  {{ $plane := index $states 0 }}
+                  {{ $callsign := $plane.String "1" }}
+                  {{ $icao24 := $plane.String "0" }}
+                  {{ $origin := $plane.String "2" }}
+                  {{ $onGround := $plane.Bool "8" }}
+
+                  <div class="margin-block-2">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                      <div>
+                        <div class="color-highlight size-h3">{{ if ne $callsign "" }}{{ $callsign }}{{ else }}{{ $icao24 }}{{ end }}</div>
+                        <div class="size-h6">CALLSIGN</div>
+                      </div>
+                      <div>
+                        <div class="color-highlight size-h3" style="word-break: break-word;">{{ if ne $origin "" }}{{ $origin }}{{ else }}-{{ end }}</div>
+                        <div class="size-h6">ORIGIN</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="margin-block-2">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                      <div>
+                        {{ $altitude := $plane.Float "7" }}
+                        <div class="color-highlight size-h3">{{ if and (not $onGround) ($altitude | ne 0.0) }}{{ $altitude | printf "%.0f" }}m{{ else }}-{{ end }}</div>
+                        <div class="size-h6">ALTITUDE</div>
+                      </div>
+                      <div>
+                        {{ $speed := $plane.Float "9" }}
+                        <div class="color-highlight size-h3">{{ if and (not $onGround) ($speed | ne 0.0) }}{{ $speed | printf "%.0f" }}m/s{{ else }}-{{ end }}</div>
+                        <div class="size-h6">SPEED</div>
+                      </div>
+                    </div>
+                  </div>
+                {{ end }}
+              </div>
+          widgets:
+            - title: Aircraft ${HOMETOWN}
+              url: https://opensky-network.org/api/states/all?lamin=${MY_LAT_MIN}&lomin=${MY_LON_MIN}&lamax=${MY_LAT_MAX}&lomax=${MY_LON_MAX}
+              <<: *nearby-aircraft
+            - title: Aircraft EHAM
+              url: https://opensky-network.org/api/states/all?lamin=${EHAM_LAT_MIN}&lomin=${EHAM_LON_MIN}&lamax=${EHAM_LAT_MAX}&lomax=${EHAM_LON_MAX}
+              <<: *nearby-aircraft
+
+        - type: custom-api
+          title: Tailscale Devices
+          title-url: https://login.tailscale.com/admin/machines
+          url: https://api.tailscale.com/api/v2/tailnet/-/devices
+          headers:
+            Authorization: Bearer ${TAILSCALE_API_KEY}
+          cache: 10m
+          template: |
+            {{/* User Variables */}}
+            {{/* Set to true if you'd like an indicator for online devices */}}
+            {{ $enableOnlineIndicator := true }}
+
+            <style>
+              .device-info-container {
+                position: relative;
+                overflow: hidden;
+                height: 1.5em;
+              }
+
+              .device-info {
+                display: flex;
+                transition: transform 0.2s ease, opacity 0.2s ease;
+              }
+
+              .device-ip {
+                position: absolute;
+                top: 0;
+                left: 0;
+                transform: translateY(-100%);
+                opacity: 0;
+                transition: transform 0.2s ease, opacity 0.2s ease;
+              }
+
+              .device-info-container:hover .device-info {
+                transform: translateY(100%);
+                opacity: 0;
+              }
+
+              .device-info-container:hover .device-ip {
+                transform: translateY(0);
+                opacity: 1;
+              }
+
+              .update-indicator {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background-color: var(--color-primary);
+                display: inline-block;
+                margin-left: 4px;
+                vertical-align: middle;
+              }
+
+              .offline-indicator {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background-color: var(--color-negative);
+                display: inline-block;
+                margin-left: 4px;
+                vertical-align: middle;
+              }
+
+              .online-indicator {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background-color: var(--color-positive);
+                display: inline-block;
+                margin-left: 4px;
+                vertical-align: middle;
+              }
+
+              .device-name-container {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              }
+
+              .indicators-container {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+              }
+            </style>
+            <ul class="list list-gap-10 collapsible-container" data-collapse-after="4">
+              {{ range .JSON.Array "devices" }}
+              <li>
+                <div class="flex items-center gap-10">
+                  <div class="device-name-container grow">
+                    <span class="size-h4 block text-truncate color-primary">
+                      {{ findMatch "^([^.]+)" (.String "name") }}
+                    </span>
+                    <div class="indicators-container">
+                      {{ if (.Bool "updateAvailable") }}
+                      <span class="update-indicator" data-popover-type="text" data-popover-text="Update Available"></span>
+                      {{ end }}
+
+                      {{ $lastSeen := .String "lastSeen" | parseTime "rfc3339" }}
+                      {{ if not ($lastSeen.After (offsetNow "-10s")) }}
+                      {{ $lastSeenTimezoned := $lastSeen.In now.Location }}
+                      <span class="offline-indicator" data-popover-type="text"
+                        data-popover-text="Offline - Last seen {{ $lastSeenTimezoned.Format " Jan 2 3:04pm" }}"></span>
+                      {{ else if $enableOnlineIndicator }}
+                        <span class="online-indicator" data-popover-type="text" data-popover-text="Online"></span>
+                      {{ end }}
+                    </div>
+                  </div>
+                </div>
+                <div class="device-info-container">
+                  <ul class="list-horizontal-text device-info">
+                    <li>{{ .String "os" }}</li>
+                    <li>{{ .String "user" }}</li>
+                  </ul>
+                  <div class="device-ip">
+                    {{ .String "addresses.0"}}
+                  </div>
+                </div>
+              </li>
+              {{ end }}
+            </ul>
+
+    - size: full
+      widgets:
+        - type: search
+          search-engine: google
+          autofocus: true
+          new-tab: true
+
+        - type: monitor
+          cache: 1m
+          title: Services
+          sites:
+            - title: n8n
+              url: https://n8n.romin.dev
+              icon: si:n8n
+            - title: Immich
+              url: http://${HOMESERVER_IP}:2283
+              icon: si:immich
+            - title: Affine
+              url: http://${HOMESERVER_IP}:3010
+              icon: si:affine
+            - title: Penpot
+              url: http://${HOMESERVER_IP}:9001
+              icon: si:penpot
+            - title: Kavita
+              url: https://books.romin.dev
+              icon: si:kavita
+            - title: Upsnap
+              url: http://${HOMESERVER_IP}:8090
+              icon: si:upsnap
+
+        - type: group
+          widgets:
+            - type: hacker-news
+            - type: lobsters
+
+        - type: videos
+          channels:
+            - UCzoOaL6EkzY4t0TQ0kT8Jcg # M. Bjoernstroem
+            - UCQeRaTukNYft1_6AZPACnog # Asmongold TV
+            - UCMwJJL5FJFuTRT55ksbQ4GQ # Asmongold Clips
+            - UCxvQFgr1AcMbS1rheMrn4uw # Vandaag Inside
+
+    - size: small
+      widgets:
+        - type: weather
+          location: ${HOMETOWN}, The Netherlands
+          units: metric
+          hour-format: 24h
+
+        - type: clock
+          hour-format: 24h
+          timezones:
+            - timezone: Asia/Seoul
+              label: Seoul
+            - timezone: Asia/Tokyo
+              label: Tokyo
+            - timezone: America/New_York
+              label: New York
+            - timezone: America/Los_Angeles
+              label: Los Angeles
+
+        - type: markets
+          markets:
+            - symbol: BTC-EUR
+              name: Bitcoin
+            - symbol: SOL-EUR
+              name: Solana
+            - symbol: XRP-EUR
+              name: Ripple
+            - symbol: RUNE-EUR
+              name: THORChain
+            - symbol: AVAX-EUR
+              name: Avalanche
+            - symbol: ADA-EUR
+              name: Cardano
+            - symbol: LPT-USD
+              name: Livepeer
+
+        - type: releases
+          cache: 1d
+          repositories:
+            - glanceapp/glance
+            - immich-app/immich
+            - seriousm4x/UpSnap
